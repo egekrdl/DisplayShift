@@ -5,6 +5,7 @@ DisplayShift is a native macOS menu bar utility for saving and switching between
 ## Features
 
 - Capture, apply, rename, update, reorder, and delete locally saved presets.
+- Drag displays into a new arrangement directly from the menu bar. Apply the draft or save it as a preset.
 - Preview relative display positions and sizes. A filled rectangle identifies the built-in display and a short bar marks the primary display.
 - See which presets match the current arrangement and optionally show an active preset name in the menu bar.
 - Assign global keyboard shortcuts to individual presets and toggle between two chosen presets.
@@ -44,6 +45,12 @@ Unzip the release if needed, move `DisplayShift.app` to **Applications**, then o
 5. Under **Settings → Shortcuts**, choose each preset, review the proposed shortcut, and click **Assign Shortcut**. The proposals for **Side Setup** and **Bottom Setup** are Control–Option–1 and Control–Option–2.
 6. Select two presets under **Toggle Pair**. The default toggle shortcut is Control–Option–Space. If neither preset is active, the toggle applies the first one.
 7. Use **Settings → Presets** to change the list. Use **Settings → General** for Launch at Login and menu bar title preferences.
+
+### Edit a layout from the menu bar
+
+Choose **Edit Layout…** and drag a display near another display's edge. The editor snaps neighboring edges together and helps align centers and edges. The bar at the top of a rectangle identifies the primary display.
+
+Click **Apply** to use the arrangement, or enter a name and click **Save as Preset** to keep the draft without applying it. **Reset** reloads the current arrangement. The editor requires one connected layout with no overlapping displays. With three or more displays, move any screens that would become isolated before moving the display joining them. Reset the draft after connecting a display or changing its size.
 
 ## Known limitations
 

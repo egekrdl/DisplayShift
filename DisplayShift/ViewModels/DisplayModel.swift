@@ -160,13 +160,38 @@ final class DisplayModel: ObservableObject {
         }
     }
 
+    func openLayoutDraft() -> LayoutDraft? {
+        var draft: LayoutDraft?
+        perform {
+            let displays = try manager.current()
+            _ = try Layout.placements(for: displays, on: displays)
+            draft = LayoutDraft(displays: displays)
+        }
+        return draft
+    }
+
+    func saveDraft(_ draft: LayoutDraft, name: String) -> Bool {
+        perform {
+            let name = try validName(name)
+            try draft.validate(on: manager.current())
+            try persist(presets + [Preset(name: name, displays: draft.displays)])
+        }
+    }
+
+    func applyDraft(_ draft: LayoutDraft) {
+        applyLayout(draft.displays) { try draft.validate(on: self.manager.current()) }
+    }
+
     func apply(_ preset: Preset) {
-        guard !busy else { return }
-        error = nil
+        applyLayout(preset.displays)
+    }
+
+    private func applyLayout(_ displays: [Display], validate: () throws -> Void = {}) {
+        guard perform(validate) else { return }
         busy = true
         Task {
             defer { refresh(); busy = false }
-            do { try await manager.apply(preset.displays) } catch { self.error = error.localizedDescription }
+            do { try await manager.apply(displays) } catch { self.error = error.localizedDescription }
         }
     }
 

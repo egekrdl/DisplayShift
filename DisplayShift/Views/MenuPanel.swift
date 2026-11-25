@@ -5,9 +5,21 @@ struct MenuPanel: View {
     var openSettings: () -> Void
     @State private var name = ""
     @State private var naming = false
+    @State private var draft: LayoutDraft?
     @FocusState private var nameFocused: Bool
 
     var body: some View {
+        Group {
+            if let draft {
+                LayoutEditor(model: model, draft: draft) { self.draft = nil }
+            } else {
+                menu
+            }
+        }
+        .onAppear { model.refresh() }
+    }
+
+    private var menu: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Image(systemName: "display.2").foregroundStyle(Color.accentColor)
@@ -16,7 +28,7 @@ struct MenuPanel: View {
                 if model.busy { ProgressView().controlSize(.small) }
             }
             if model.presets.isEmpty {
-                Text("Arrange your displays in System Settings, then save the layout here.")
+                Text("Edit your display layout or save the current arrangement.")
                     .foregroundStyle(.secondary)
                     .font(.callout)
                     .padding(.vertical, 6)
@@ -52,6 +64,10 @@ struct MenuPanel: View {
                 }
                 .disabled(model.busy)
             }
+            action("Edit Layout…", icon: "rectangle.2.swap") {
+                draft = model.openLayoutDraft()
+            }
+            .disabled(model.busy)
             action("Toggle Layout", icon: "arrow.left.arrow.right") { model.toggle() }
                 .disabled(model.busy || !model.canToggle)
                 .help(model.canToggle ? "Switch between the selected layouts" : "Choose two presets in Shortcuts settings")
@@ -60,7 +76,6 @@ struct MenuPanel: View {
         }
         .padding(14)
         .frame(width: 326)
-        .onAppear { model.refresh() }
     }
 
     private func save() {

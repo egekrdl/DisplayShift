@@ -17,6 +17,7 @@ struct Preset: Codable, Identifiable {
 
 enum LayoutError: LocalizedError {
     case unavailable, mirrored, ambiguous, missing([String]), extra([String])
+    case displaySizeChanged, disconnectedDraft
     case invalid, system(String, Int32), verification(Bool), emptyName, toggle
 
     var errorDescription: String? {
@@ -26,6 +27,8 @@ enum LayoutError: LocalizedError {
         case .ambiguous: return "macOS reported duplicate display identifiers. The displays cannot be matched safely."
         case .missing(let names): return "Connect the required displays: \(names.joined(separator: ", "))."
         case .extra(let names): return "This preset does not include these active displays: \(names.joined(separator: ", "))."
+        case .displaySizeChanged: return "A display changed size. Reset the editor to load the current displays."
+        case .disconnectedDraft: return "Each display must touch another display along an edge, without overlap."
         case .invalid: return "This arrangement contains invalid display coordinates or a missing primary display."
         case .system(let operation, let code): return "\(operation) failed (Core Graphics error \(code))."
         case .verification(let restored):
