@@ -108,7 +108,7 @@ struct SettingsPanel: View {
             Image(systemName: "display.2").font(.system(size: 45, weight: .light))
                 .foregroundStyle(Color.accentColor)
             Text("DisplayShift").font(.title.weight(.semibold))
-            Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.2.0")")
+            Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.2.1")")
                 .foregroundStyle(.secondary)
             Text("Save and switch between Mac display arrangements.")
             Text("Presets are stored on this Mac. DisplayShift works offline.")

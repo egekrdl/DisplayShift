@@ -25,6 +25,12 @@ archive_name="DisplayShift-$version.zip"
 [[ "$(plutil -extract SUVerifyUpdateBeforeExtraction raw "$info")" == true ]]
 [[ "$public_key" == "$("$(dirname "$sign_update")/generate_keys" --account "$account" -p)" ]]
 [[ "$(gh repo view "$repository" --json visibility --jq .visibility)" == PRIVATE ]]
+executable=$(plutil -extract CFBundleExecutable raw "$info")
+test -f "$app/Contents/Frameworks/Sparkle.framework/Versions/B/Sparkle"
+for architecture in $(lipo -archs "$app/Contents/MacOS/$executable"); do
+    otool -arch "$architecture" -l "$app/Contents/MacOS/$executable" |
+        grep -F 'path @executable_path/../Frameworks (offset' >/dev/null
+done
 codesign --verify --deep --strict "$app"
 
 output=$(mktemp -d)
