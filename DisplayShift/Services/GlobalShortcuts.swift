@@ -50,7 +50,7 @@ final class GlobalShortcuts {
         var reference: EventHotKeyRef?
         let status = RegisterEventHotKey(shortcut.key, shortcut.modifiers,
                                          EventHotKeyID(signature: Self.signature, id: id),
-                                         GetApplicationEventTarget(), 0, &reference)
+                                         GetApplicationEventTarget(), UInt32(kEventHotKeyExclusive), &reference)
         guard status == noErr, let reference else { throw ShortcutError.registration(shortcut.label, status) }
         remove(action)
         registrations[action] = Registration(shortcut: shortcut, id: id, reference: reference)
@@ -66,7 +66,7 @@ final class GlobalShortcuts {
         guard handler == nil else { return }
         let context = Unmanaged.passUnretained(self).toOpaque()
         var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
-                                      eventKind: UInt32(kEventHotKeyReleased))
+                                      eventKind: UInt32(kEventHotKeyPressed))
         let status = InstallEventHandler(GetApplicationEventTarget(), { _, event, info in
             guard let event, let info else { return OSStatus(eventNotHandledErr) }
             var hotKey = EventHotKeyID()

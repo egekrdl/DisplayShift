@@ -55,6 +55,12 @@ enum Layout {
         guard missing.isEmpty else { throw LayoutError.missing(missing.map(\.name)) }
         let extra = current.filter { !savedIDs.contains($0.id) }
         guard extra.isEmpty else { throw LayoutError.extra(extra.map(\.name)) }
+        guard saved.allSatisfy({ display in
+            let bounds = display.bounds
+            return bounds.minX.isFinite && bounds.minY.isFinite &&
+                bounds.width.isFinite && bounds.height.isFinite &&
+                bounds.width > 0 && bounds.height > 0
+        }) else { throw LayoutError.invalid }
         let primary = saved.filter(\.primary)
         guard primary.count == 1, let anchor = primary.first else { throw LayoutError.invalid }
         return try (saved.filter { !$0.primary } + primary).map { display in
