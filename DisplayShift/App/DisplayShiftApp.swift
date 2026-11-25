@@ -1,40 +1,35 @@
+import AppKit
 import SwiftUI
 
 @main
 struct DisplayShiftApp: App {
     @StateObject private var model = DisplayModel(manager: QuartzDisplays())
+    private let settings = SettingsWindow.shared
 
     var body: some Scene {
         MenuBarExtra("DisplayShift", systemImage: "display.2") {
-            MenuPanel(model: model)
+            MenuPanel(model: model) { settings.show(model) }
         }
         .menuBarExtraStyle(.window)
     }
 }
 
-struct MenuPanel: View {
-    @ObservedObject var model: DisplayModel
-    @State private var name = ""
+@MainActor
+final class SettingsWindow {
+    static let shared = SettingsWindow()
+    private var window: NSWindow?
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("DisplayShift").font(.headline)
-            ForEach(model.presets) { preset in
-                Button(preset.name) { model.apply(preset) }.disabled(model.busy)
-            }
-            TextField("Preset name", text: $name)
-            Button("Save Current Layout") { model.capture(name); name = "" }.disabled(model.busy)
-            Button("Quit DisplayShift") { NSApp.terminate(nil) }
+    func show(_ model: DisplayModel) {
+        if window == nil {
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 440),
+                                  styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            window.title = "DisplayShift Settings"
+            window.isReleasedWhenClosed = false
+            window.contentView = NSHostingView(rootView: SettingsPanel(model: model))
+            window.center()
+            self.window = window
         }
-        .padding()
-        .frame(width: 300)
-        .onAppear { model.refresh() }
-        .alert("DisplayShift", isPresented: Binding(
-            get: { model.error != nil }, set: { if !$0 { model.error = nil } }
-        )) {
-            Button("OK") { model.error = nil }
-        } message: {
-            Text(model.error ?? "")
-        }
+        NSApp.activate(ignoringOtherApps: true)
+        window?.makeKeyAndOrderFront(nil)
     }
 }

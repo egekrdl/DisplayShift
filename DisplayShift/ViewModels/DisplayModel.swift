@@ -25,7 +25,11 @@ final class DisplayModel: ObservableObject {
         current = (try? manager.current()) ?? []
     }
 
-    func capture(_ name: String) {
+    func isActive(_ preset: Preset) -> Bool {
+        Layout.matches(preset.displays, current)
+    }
+
+    func capture(_ name: String) -> Bool {
         perform {
             let name = try validName(name)
             let displays = try manager.current()
@@ -88,8 +92,16 @@ final class DisplayModel: ObservableObject {
         return trimmed
     }
 
-    private func perform(_ operation: () throws -> Void) {
-        guard !busy else { return }
-        do { try operation() } catch { self.error = error.localizedDescription }
+    @discardableResult
+    private func perform(_ operation: () throws -> Void) -> Bool {
+        guard !busy else { return false }
+        do {
+            try operation()
+            error = nil
+            return true
+        } catch {
+            self.error = error.localizedDescription
+            return false
+        }
     }
 }
