@@ -11,6 +11,13 @@ struct LayoutDraft {
         }
     }
 
+    mutating func setPrimary(_ id: String) {
+        guard displays.contains(where: { $0.id == id }) else { return }
+        for index in displays.indices {
+            displays[index].primary = displays[index].id == id
+        }
+    }
+
     mutating func setRefreshRate(_ rate: Double?, for id: String) {
         guard let index = displays.firstIndex(where: { $0.id == id }) else { return }
         displays[index].refreshRate = rate

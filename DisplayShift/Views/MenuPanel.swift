@@ -69,6 +69,14 @@ struct MenuPanel: View {
                 draft = model.openLayoutDraft()
             }
             .disabled(model.busy)
+            Menu {
+                displayModeAction(.extended)
+                displayModeAction(.mirrorMain)
+            } label: {
+                Label("Display Mode", systemImage: "display.2")
+            }
+            .disabled(model.busy || model.mirroring?.canChange != true)
+            .help("Extend the desktop or mirror the main display")
             action("Toggle Layout", icon: "arrow.left.arrow.right") { model.toggle() }
                 .disabled(model.busy || !model.canToggle)
                 .help(model.canToggle ? "Switch between the selected layouts" : "Choose two presets in Shortcuts settings")
@@ -122,6 +130,19 @@ struct MenuPanel: View {
         .accessibilityAddTraits(active ? .isSelected : [])
         .help("Apply \(preset.name)")
         .disabled(model.busy)
+    }
+
+    private func displayModeAction(_ mode: DisplayMode) -> some View {
+        Button {
+            model.setDisplayMode(mode)
+        } label: {
+            if model.mirroring?.mode == mode {
+                Label(mode.rawValue, systemImage: "checkmark")
+            } else {
+                Text(mode.rawValue)
+            }
+        }
+        .disabled(model.mirroring?.mode == mode)
     }
 
     private func action(_ title: String, icon: String, run: @escaping () -> Void) -> some View {

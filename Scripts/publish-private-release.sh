@@ -1,13 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
-if [[ $# != 2 ]]; then
-    echo "Usage: $0 path/to/DisplayShift.app path/to/Sparkle/bin/sign_update" >&2
+if [[ $# != 3 ]]; then
+    echo "Usage: $0 path/to/DisplayShift.app path/to/Sparkle/bin/sign_update path/to/DisplayShift.dmg" >&2
     exit 2
 fi
 
 app=$1
 sign_update=$2
+installer=$3
 repository=egekrdl/DisplayShift
 account=com.displayshift.app
 info="$app/Contents/Info.plist"
@@ -17,6 +18,7 @@ minimum=$(plutil -extract LSMinimumSystemVersion raw "$info")
 public_key=$(plutil -extract SUPublicEDKey raw "$info")
 tag="v$version"
 archive_name="DisplayShift-$version.zip"
+[[ -f "$installer" && "$(basename "$installer")" == "DisplayShift-$version.dmg" ]]
 
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$build" =~ ^[0-9]+$ &&
    "$minimum" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]
@@ -47,7 +49,7 @@ if gh release view "$tag" --repo "$repository" >/dev/null 2>&1; then
 fi
 
 revision=$(git rev-parse HEAD)
-gh release create "$tag" "$archive" --repo "$repository" --target "$revision" \
+gh release create "$tag" "$archive" "$installer" --repo "$repository" --target "$revision" \
     --draft --title "DisplayShift $version" --notes "Private, signed DisplayShift update."
 asset_id=$(gh api --paginate "repos/$repository/releases" \
     --jq ".[] | select(.tag_name == \"$tag\" and .draft) | .assets[] | select(.name == \"$archive_name\") | .id")

@@ -5,6 +5,8 @@ DisplayShift is a native macOS menu bar utility for saving and switching between
 ## Features
 
 - Capture, apply, rename, update, reorder, and delete locally saved presets.
+- Extend connected displays or mirror the main display directly from the menu bar.
+- Choose the main display when editing a layout.
 - Drag displays into a new arrangement directly from the menu bar. Apply the draft or save it as a preset.
 - Preview relative display positions and sizes. A filled rectangle identifies the built-in display and a short bar marks the primary display.
 - See which presets match the current arrangement and optionally show an active preset name in the menu bar.
@@ -37,7 +39,7 @@ The bundle is at `build/Build/Products/Release/DisplayShift.app`. Swift Package 
 
 ## Install
 
-Unzip the release if needed, move `DisplayShift.app` to **Applications**, then open it. Look for the two-display icon in the menu bar. If macOS blocks a downloaded copy, use a build you made yourself or a trusted Developer ID–signed and notarized release. The local build uses ad hoc signing and has not been notarized.
+Open the release’s `.dmg` in Finder, drag **DisplayShift.app** onto the **Applications** shortcut, then open the copy in Applications and eject the disk image. Look for the two-display icon in the menu bar. If macOS blocks a downloaded copy, use a build you made yourself or a trusted Developer ID–signed and notarized release. The local build uses ad hoc signing and has not been notarized.
 
 ## Use
 
@@ -53,15 +55,19 @@ Unzip the release if needed, move `DisplayShift.app` to **Applications**, then o
 
 Choose **Edit Layout…** and drag a display near another display's edge. The editor snaps neighboring edges together and helps align centers and edges. The bar at the top of a rectangle identifies the primary display.
 
-Click **Apply** to use the arrangement, or enter a name and click **Save as Preset** to keep the draft without applying it. **Reset** reloads the current arrangement. The editor requires one connected layout with no overlapping displays. With three or more displays, move any screens that would become isolated before moving the display joining them. Reset the draft after connecting a display or changing its size.
+Use **Main Display** to choose which monitor macOS treats as the main display. Click **Apply** to use the arrangement, or enter a name and click **Save as Preset** to keep the draft without applying it. **Reset** reloads the current arrangement. The editor requires one connected layout with no overlapping displays. With three or more displays, move any screens that would become isolated before moving the display joining them. Reset the draft after connecting a display or changing its size.
 
 The editor also lets you select a display and choose a compatible fixed **Refresh Rate**. **Keep Current** leaves its mode alone. Rates saved with a preset are applied only when the display still exposes a matching mode at its current resolution and scaling. To change **Rotation**, use **Open Displays Settings**, then return and **Reset** the draft.
+
+### Extend or mirror displays
+
+From the menu bar, open **Display Mode** and choose **Extend Displays** or **Mirror Main Display**. These actions require at least two active or mirrored displays. Core Graphics decides the supported mirroring configuration and sets the extended positions when mirroring ends. Use **Edit Layout…** or a preset to arrange those positions afterward. DisplayShift refreshes the menu when displays connect or disconnect.
 
 ## Private updates
 
 Install the first update-enabled build manually. Under **Settings → Updates**, add a GitHub fine-grained personal access token with **Contents: Read-only** for the private `egekrdl/DisplayShift` repository only. The token is stored in macOS Keychain. Use **Check for Updates…** from the menu bar or Settings. Sparkle verifies signed update feeds and archives before installation. A token that expires or is revoked must be replaced.
 
-To publish a new update, increment the marketing and build versions, commit and push the source, and build its Release bundle. Use the official Sparkle tool archive matching the pinned dependency. Run `bash Scripts/publish-private-release.sh <DisplayShift.app> <Sparkle/bin/sign_update>` from the committed checkout with authenticated GitHub CLI access and the original Sparkle signing key in Keychain under `com.displayshift.app`. The script verifies the key and the app signature, signs the archive and feed, and publishes both in one private release. Keep the private signing key backed up securely outside the repository. After publishing, use the GitHub release archive for the first installation.
+To publish a new update, increment the marketing and build versions, commit and push the source, and build its Release bundle. Use the official Sparkle tool archive matching the pinned dependency. Create `DisplayShift-<version>.dmg` with `bash Scripts/create-install-image.sh <DisplayShift.app> <installer.dmg>`, then run `bash Scripts/publish-private-release.sh <DisplayShift.app> <Sparkle/bin/sign_update> <installer.dmg>` from the committed checkout with authenticated GitHub CLI access and the original Sparkle signing key in Keychain under `com.displayshift.app`. The script verifies the key and the app signature, signs the archive and feed, and publishes both alongside the manual installer in one private release. Keep the private signing key backed up securely outside the repository. After publishing, use the GitHub release disk image for the first installation.
 
 ## Known limitations
 

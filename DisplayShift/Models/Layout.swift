@@ -18,6 +18,7 @@ struct Preset: Codable, Identifiable {
 }
 
 enum LayoutError: LocalizedError {
+    case mirroringNeedsTwoDisplays, mirroringVerification(Bool)
     case unavailable, mirrored, ambiguous, missing([String]), extra([String])
     case displaySizeChanged, disconnectedDraft, unsupportedRefreshRate(String)
     case invalid, system(String, Int32), verification(Bool), emptyName, toggle
@@ -25,6 +26,11 @@ enum LayoutError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unavailable: return "No usable displays were found."
+        case .mirroringNeedsTwoDisplays: return "Connect at least two active displays to change mirroring."
+        case .mirroringVerification(let restored):
+            return restored
+                ? "macOS did not apply the requested display mode. The previous mirroring mode was restored."
+                : "macOS did not apply the requested display mode. Check Displays in System Settings."
         case .mirrored: return "Turn off display mirroring before saving or applying an arrangement."
         case .ambiguous: return "macOS reported duplicate display identifiers. The displays cannot be matched safely."
         case .missing(let names): return "Connect the required displays: \(names.joined(separator: ", "))."

@@ -8,6 +8,7 @@ final class DisplayModel: ObservableObject {
     @Published private(set) var presets: [Preset] = []
     @Published private(set) var current: [Display] = []
     @Published private(set) var connected: [Display] = []
+    @Published private(set) var mirroring: DisplayMirroring?
     @Published private(set) var busy = false
     @Published var error: String?
     @Published private(set) var shortcuts = ShortcutSettings()
@@ -64,6 +65,7 @@ final class DisplayModel: ObservableObject {
     func refresh() {
         current = (try? manager.current()) ?? []
         connected = (try? manager.connected()) ?? current
+        mirroring = try? manager.mirroring()
     }
 
     func isActive(_ preset: Preset) -> Bool {
@@ -201,10 +203,20 @@ final class DisplayModel: ObservableObject {
 
     private func applyLayout(_ displays: [Display], validate: () throws -> Void = {}) {
         guard perform(validate) else { return }
+        changeDisplays { try await self.manager.apply(displays) }
+    }
+
+    func setDisplayMode(_ mode: DisplayMode) {
+        changeDisplays { try await self.manager.setDisplayMode(mode) }
+    }
+
+    private func changeDisplays(_ operation: @escaping @MainActor () async throws -> Void) {
+        guard !busy else { return }
+        error = nil
         busy = true
         Task {
             defer { refresh(); busy = false }
-            do { try await manager.apply(displays) } catch { self.error = error.localizedDescription }
+            do { try await operation() } catch { self.error = error.localizedDescription }
         }
     }
 

@@ -5,6 +5,8 @@ import CoreGraphics
 protocol DisplayManaging {
     func current() throws -> [Display]
     func connected() throws -> [Display]
+    func mirroring() throws -> DisplayMirroring
+    func setDisplayMode(_ mode: DisplayMode) async throws
     func refreshRates(for id: String) throws -> [Double]
     func apply(_ displays: [Display]) async throws
 }
@@ -22,6 +24,48 @@ final class QuartzDisplays: DisplayManaging {
 
     func connected() throws -> [Display] {
         try readDisplays(online: true).map(\.display)
+    }
+
+    func mirroring() throws -> DisplayMirroring {
+        let handles = try displayHandles(online: true).filter {
+            CGDisplayIsActive($0) != 0 || CGDisplayIsInMirrorSet($0) != 0
+        }
+        let sources = Dictionary(uniqueKeysWithValues: handles.map { ($0, CGDisplayMirrorsDisplay($0)) })
+        return DisplayMirroring(main: CGMainDisplayID(), sources: sources)
+    }
+
+    func setDisplayMode(_ mode: DisplayMode) async throws {
+        let before = try mirroring()
+        let desired = try before.setting(mode)
+        let changes = before.changes(to: desired)
+        guard !changes.isEmpty else { return }
+        try commitMirroring(changes)
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        guard let after = try? mirroring(), Set(after.sources.keys) == Set(before.sources.keys) else {
+            throw LayoutError.mirroringVerification(false)
+        }
+        if after.mode == mode && (mode == .extended || after.main == before.main) { return }
+
+        var restored = after.sources == before.sources
+        if !restored {
+            do {
+                try commitMirroring(after.changes(to: before))
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                restored = (try? mirroring().sources) == before.sources
+            } catch {
+                restored = false
+            }
+        }
+        throw LayoutError.mirroringVerification(restored)
+    }
+
+    private func commitMirroring(_ changes: [DisplayMirroring.Change]) throws {
+        try transaction("Changing display mirroring") { config in
+            for change in changes {
+                try check(CGConfigureDisplayMirrorOfDisplay(config, change.display, change.source),
+                          "Configuring display mirroring")
+            }
+        }
     }
 
     func refreshRates(for id: String) throws -> [Double] {
@@ -95,15 +139,20 @@ final class QuartzDisplays: DisplayManaging {
         return screens
     }
 
-    private func readDisplays(online: Bool) throws -> [Screen] {
+    private func displayHandles(online: Bool) throws -> [CGDirectDisplayID] {
         let list = online ? CGGetOnlineDisplayList : CGGetActiveDisplayList
         var count: UInt32 = 0
         try check(list(0, nil, &count), "Detecting displays")
         guard count > 0 else { return [] }
         var handles = [CGDirectDisplayID](repeating: 0, count: Int(count))
         try check(list(count, &handles, &count), "Reading displays")
+        return Array(handles.prefix(Int(count)))
+    }
+
+    private func readDisplays(online: Bool) throws -> [Screen] {
+        let handles = try displayHandles(online: online)
         let screens = NSScreen.screens
-        let result = handles.prefix(Int(count)).map { handle in
+        let result = handles.map { handle in
             let builtIn = CGDisplayIsBuiltin(handle) != 0
             let serial = CGDisplaySerialNumber(handle)
             let vendor = CGDisplayVendorNumber(handle)
@@ -140,9 +189,7 @@ final class QuartzDisplays: DisplayManaging {
 
     private func commit(_ plan: [Layout.Placement], modes: [String: CGDisplayMode], to screens: [Screen]) throws {
         let handles = Dictionary(uniqueKeysWithValues: screens.map { ($0.display.id, $0.handle) })
-        var config: CGDisplayConfigRef?
-        try check(CGBeginDisplayConfiguration(&config), "Starting display configuration")
-        do {
+        try transaction("Applying display configuration") { config in
             for (id, mode) in modes {
                 guard let handle = handles[id] else { throw LayoutError.invalid }
                 try check(CGConfigureDisplayWithDisplayMode(config, handle, mode, nil), "Setting refresh rate")
@@ -151,11 +198,19 @@ final class QuartzDisplays: DisplayManaging {
                 guard let handle = handles[placement.id] else { throw LayoutError.invalid }
                 try check(CGConfigureDisplayOrigin(config, handle, placement.x, placement.y), "Arranging displays")
             }
+        }
+    }
+
+    private func transaction(_ operation: String, configure: (CGDisplayConfigRef?) throws -> Void) throws {
+        var config: CGDisplayConfigRef?
+        try check(CGBeginDisplayConfiguration(&config), "Starting display configuration")
+        do {
+            try configure(config)
         } catch {
             CGCancelDisplayConfiguration(config)
             throw error
         }
-        try check(CGCompleteDisplayConfiguration(config, .forSession), "Applying display configuration")
+        try check(CGCompleteDisplayConfiguration(config, .forSession), operation)
     }
 
     private func check(_ error: CGError, _ operation: String) throws {

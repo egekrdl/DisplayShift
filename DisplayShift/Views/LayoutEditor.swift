@@ -118,6 +118,14 @@ struct LayoutEditor: View {
                     Text(display.name).tag(display.id)
                 }
             }
+            Picker("Main Display", selection: Binding(
+                get: { draft.displays.first(where: \.primary)?.id ?? "" },
+                set: { draft.setPrimary($0) }
+            )) {
+                ForEach(draft.displays) { display in
+                    Text(display.name).tag(display.id)
+                }
+            }
             if let display = draft.displays.first(where: { $0.id == selectedID }) {
                 Picker("Refresh Rate", selection: Binding(
                     get: { display.refreshRate },
