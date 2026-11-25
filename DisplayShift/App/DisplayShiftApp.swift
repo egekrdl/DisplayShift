@@ -7,8 +7,15 @@ struct DisplayShiftApp: App {
     private let settings = SettingsWindow.shared
 
     var body: some Scene {
-        MenuBarExtra("DisplayShift", systemImage: "display.2") {
+        MenuBarExtra {
             MenuPanel(model: model) { settings.show(model) }
+        } label: {
+            let icon = model.error == nil ? "display.2" : "exclamationmark.circle"
+            if model.showActiveName, let active = model.activePreset {
+                Label(String(active.name.prefix(24)), systemImage: icon)
+            } else {
+                Image(systemName: icon).accessibilityLabel("DisplayShift")
+            }
         }
         .menuBarExtraStyle(.window)
     }

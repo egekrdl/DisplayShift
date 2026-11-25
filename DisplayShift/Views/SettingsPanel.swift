@@ -11,6 +11,7 @@ struct SettingsPanel: View {
             TabView {
                 general.tabItem { Label("General", systemImage: "gearshape") }
                 presets.tabItem { Label("Presets", systemImage: "display.2") }
+                ShortcutsPanel(model: model).tabItem { Label("Shortcuts", systemImage: "keyboard") }
                 about.tabItem { Label("About", systemImage: "info.circle") }
             }
             if let error = model.error {
@@ -23,11 +24,22 @@ struct SettingsPanel: View {
 
     private var general: some View {
         Form {
-            Section("Connected Displays") {
-                if model.current.isEmpty {
-                    Text("No independent active displays available.").foregroundStyle(.secondary)
+            Section("Application") {
+                Toggle("Launch at Login", isOn: Binding(
+                    get: { model.loginStatus == .enabled || model.loginStatus == .requiresApproval },
+                    set: { model.setLaunchAtLogin($0) }
+                ))
+                if model.loginStatus == .requiresApproval {
+                    Text("Allow DisplayShift in System Settings → General → Login Items.")
+                        .font(.callout).foregroundStyle(.secondary)
                 }
-                ForEach(model.current) { display in
+                Toggle("Show active preset name in the menu bar", isOn: $model.showActiveName)
+            }
+            Section("Connected Displays") {
+                if model.connected.isEmpty {
+                    Text("No connected displays reported by macOS.").foregroundStyle(.secondary)
+                }
+                ForEach(Array(model.connected.enumerated()), id: \.offset) { _, display in
                     LabeledContent(display.name) {
                         let kind = display.builtIn ? "Built-in" : "External"
                         let primary = display.primary ? " · Primary" : ""

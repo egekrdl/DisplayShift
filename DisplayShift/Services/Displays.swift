@@ -4,6 +4,7 @@ import CoreGraphics
 @MainActor
 protocol DisplayManaging {
     func current() throws -> [Display]
+    func connected() throws -> [Display]
     func apply(_ displays: [Display]) async throws
 }
 
@@ -16,6 +17,10 @@ final class QuartzDisplays: DisplayManaging {
 
     func current() throws -> [Display] {
         try snapshot().map(\.display)
+    }
+
+    func connected() throws -> [Display] {
+        try readDisplays(online: true).map(\.display)
     }
 
     func apply(_ displays: [Display]) async throws {
@@ -41,15 +46,23 @@ final class QuartzDisplays: DisplayManaging {
     }
 
     private func snapshot() throws -> [Screen] {
+        let screens = try readDisplays(online: false)
+        guard !screens.isEmpty else { throw LayoutError.unavailable }
+        guard screens.allSatisfy({ CGDisplayIsInMirrorSet($0.handle) == 0 }) else {
+            throw LayoutError.mirrored
+        }
+        return screens
+    }
+
+    private func readDisplays(online: Bool) throws -> [Screen] {
+        let list = online ? CGGetOnlineDisplayList : CGGetActiveDisplayList
         var count: UInt32 = 0
-        try check(CGGetActiveDisplayList(0, nil, &count), "Detecting displays")
-        guard count > 0 else { throw LayoutError.unavailable }
+        try check(list(0, nil, &count), "Detecting displays")
+        guard count > 0 else { return [] }
         var handles = [CGDirectDisplayID](repeating: 0, count: Int(count))
-        try check(CGGetActiveDisplayList(count, &handles, &count), "Reading displays")
+        try check(list(count, &handles, &count), "Reading displays")
         let screens = NSScreen.screens
-        var result: [Screen] = []
-        for handle in handles.prefix(Int(count)) {
-            guard CGDisplayIsInMirrorSet(handle) == 0 else { throw LayoutError.mirrored }
+        let result = handles.prefix(Int(count)).map { handle in
             let builtIn = CGDisplayIsBuiltin(handle) != 0
             let serial = CGDisplaySerialNumber(handle)
             let vendor = CGDisplayVendorNumber(handle)
@@ -68,10 +81,18 @@ final class QuartzDisplays: DisplayManaging {
             let name = screen?.localizedName ?? (builtIn ? "Built-in Display" : "External Display")
             let display = Display(id: id, name: name, bounds: CGDisplayBounds(handle),
                                   primary: CGDisplayIsMain(handle) != 0, builtIn: builtIn)
-            result.append(Screen(handle: handle, display: display))
+            return Screen(handle: handle, display: display)
         }
-        guard !result.isEmpty else { throw LayoutError.unavailable }
-        return result
+        let countByID = Dictionary(grouping: result, by: { $0.display.id })
+        return result.map { screen in
+            guard (countByID[screen.display.id]?.count ?? 0) > 1,
+                  let uuid = CGDisplayCreateUUIDFromDisplayID(screen.handle)?.takeRetainedValue() else {
+                return screen
+            }
+            var display = screen.display
+            display.id = "uuid-\(CFUUIDCreateString(nil, uuid) as String)"
+            return Screen(handle: screen.handle, display: display)
+        }
     }
 
     private func commit(_ plan: [Layout.Placement], to screens: [Screen]) throws {

@@ -52,6 +52,9 @@ struct MenuPanel: View {
                 }
                 .disabled(model.busy)
             }
+            action("Toggle Layout", icon: "arrow.left.arrow.right") { model.toggle() }
+                .disabled(model.busy || !model.canToggle)
+                .help(model.canToggle ? "Switch between the selected layouts" : "Choose two presets in Shortcuts settings")
             action("Settings…", icon: "gearshape", run: openSettings)
             action("Quit DisplayShift", icon: "power") { NSApp.terminate(nil) }
         }
@@ -77,6 +80,12 @@ struct MenuPanel: View {
                     if active { Text("Active").font(.caption).foregroundStyle(.secondary) }
                 }
                 Spacer(minLength: 5)
+                if let shortcut = model.shortcuts.presets[preset.id] {
+                    Text(shortcut.label)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .help(model.unavailableShortcuts.contains(.preset(preset.id)) ? "Shortcut unavailable" : shortcut.label)
+                }
                 if active {
                     Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.accentColor)
                 }
