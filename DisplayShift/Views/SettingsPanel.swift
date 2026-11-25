@@ -2,17 +2,20 @@ import SwiftUI
 
 struct SettingsPanel: View {
     @ObservedObject var model: DisplayModel
+    @ObservedObject var navigation: SettingsWindow
     @State private var selection: UUID?
     @State private var editedName = ""
     @State private var confirmDelete = false
 
     var body: some View {
         VStack(spacing: 10) {
-            TabView {
-                general.tabItem { Label("General", systemImage: "gearshape") }
-                presets.tabItem { Label("Presets", systemImage: "display.2") }
-                ShortcutsPanel(model: model).tabItem { Label("Shortcuts", systemImage: "keyboard") }
-                about.tabItem { Label("About", systemImage: "info.circle") }
+            TabView(selection: $navigation.tab) {
+                general.tabItem { Label("General", systemImage: "gearshape") }.tag(SettingsWindow.Tab.general)
+                presets.tabItem { Label("Presets", systemImage: "display.2") }.tag(SettingsWindow.Tab.presets)
+                ShortcutsPanel(model: model).tabItem { Label("Shortcuts", systemImage: "keyboard") }.tag(SettingsWindow.Tab.shortcuts)
+                UpdatesPanel(updates: .shared).tabItem { Label("Updates", systemImage: "arrow.down.circle") }
+                    .tag(SettingsWindow.Tab.updates)
+                about.tabItem { Label("About", systemImage: "info.circle") }.tag(SettingsWindow.Tab.about)
             }
             if let error = model.error {
                 StatusMessage(message: error) { model.error = nil }
@@ -33,6 +36,7 @@ struct SettingsPanel: View {
                     Text("Allow DisplayShift in System Settings → General → Login Items.")
                         .font(.callout).foregroundStyle(.secondary)
                 }
+                Toggle("Show preset names only", isOn: $model.hidePresetPreviews)
                 Toggle("Show active preset name in the menu bar", isOn: $model.showActiveName)
             }
             Section("Connected Displays") {
@@ -56,10 +60,10 @@ struct SettingsPanel: View {
             List(selection: $selection) {
                 ForEach(model.presets) { preset in
                     HStack {
-                        LayoutPreview(displays: preset.displays, active: model.isActive(preset))
+                        if !model.hidePresetPreviews { LayoutPreview(displays: preset.displays, active: model.isActive(preset)) }
                         Text(preset.name).lineLimit(1)
                         Spacer()
-                        Text("\(preset.displays.count) displays").foregroundStyle(.secondary)
+                        if !model.hidePresetPreviews { Text("\(preset.displays.count) displays").foregroundStyle(.secondary) }
                     }
                     .tag(preset.id)
                 }
@@ -104,7 +108,7 @@ struct SettingsPanel: View {
             Image(systemName: "display.2").font(.system(size: 45, weight: .light))
                 .foregroundStyle(Color.accentColor)
             Text("DisplayShift").font(.title.weight(.semibold))
-            Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.1.0")")
+            Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.2.0")")
                 .foregroundStyle(.secondary)
             Text("Save and switch between Mac display arrangements.")
             Text("Presets are stored on this Mac. DisplayShift works offline.")

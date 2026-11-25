@@ -8,7 +8,7 @@ let package = Package(
         .target(
             name: "DisplayShiftCore",
             path: "DisplayShift",
-            exclude: ["App", "Views", "ViewModels", "Resources", "Services/Displays.swift", "Services/GlobalShortcuts.swift"],
+            exclude: ["App", "Views", "ViewModels", "Resources", "Services/Displays.swift", "Services/GlobalShortcuts.swift", "Services/PrivateUpdates.swift"],
             sources: ["Models", "Services/PresetStore.swift"]
         ),
         .testTarget(name: "DisplayShiftCoreTests", dependencies: ["DisplayShiftCore"], path: "Tests")

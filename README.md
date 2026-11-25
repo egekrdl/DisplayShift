@@ -9,15 +9,18 @@ DisplayShift is a native macOS menu bar utility for saving and switching between
 - Preview relative display positions and sizes. A filled rectangle identifies the built-in display and a short bar marks the primary display.
 - See which presets match the current arrangement and optionally show an active preset name in the menu bar.
 - Assign global keyboard shortcuts to individual presets and toggle between two chosen presets.
+- Optionally show preset names without miniature previews.
+- Set a compatible fixed refresh rate per display in the layout editor.
+- Check for signed updates from the private GitHub release channel.
 - Optionally launch at login using macOS Login Items.
 - Refresh connected-display information when macOS reports a screen change.
-- Works offline with no third-party dependencies, telemetry, or Accessibility and Input Monitoring prompts.
+- Layout editing works offline. Update checks contact GitHub only when requested. DisplayShift has no telemetry, Accessibility prompt, or Input Monitoring prompt.
 
 ## Requirements
 
 - macOS 13 Ventura or newer.
 - Apple Silicon or Intel Mac for the universal release.
-- Xcode 16 or newer to work with the Xcode project. The local release was built with Xcode 27.2.
+- Xcode 16 or newer to work with the Xcode project. Xcode fetches the pinned Sparkle framework when resolving packages. The local release was built with Xcode 27.2.
 
 ## Build and test
 
@@ -52,11 +55,19 @@ Choose **Edit Layout…** and drag a display near another display's edge. The ed
 
 Click **Apply** to use the arrangement, or enter a name and click **Save as Preset** to keep the draft without applying it. **Reset** reloads the current arrangement. The editor requires one connected layout with no overlapping displays. With three or more displays, move any screens that would become isolated before moving the display joining them. Reset the draft after connecting a display or changing its size.
 
+The editor also lets you select a display and choose a compatible fixed **Refresh Rate**. **Keep Current** leaves its mode alone. Rates saved with a preset are applied only when the display still exposes a matching mode at its current resolution and scaling. To change **Rotation**, use **Open Displays Settings**, then return and **Reset** the draft.
+
+## Private updates
+
+Install the first update-enabled build manually. Under **Settings → Updates**, add a GitHub fine-grained personal access token with **Contents: Read-only** for the private `egekrdl/DisplayShift` repository only. The token is stored in macOS Keychain. Use **Check for Updates…** from the menu bar or Settings. Sparkle verifies signed update feeds and archives before installation. A token that expires or is revoked must be replaced.
+
+To publish a new update, increment the marketing and build versions, commit and push the source, and build its Release bundle. Use the official Sparkle tool archive matching the pinned dependency. Run `bash Scripts/publish-private-release.sh <DisplayShift.app> <Sparkle/bin/sign_update>` from the committed checkout with authenticated GitHub CLI access and the original Sparkle signing key in Keychain under `com.displayshift.app`. The script verifies the key and the app signature, signs the archive and feed, and publishes both in one private release. Keep the private signing key backed up securely outside the repository. After publishing, use the GitHub release archive for the first installation.
+
 ## Known limitations
 
 - A preset requires the same set of active displays. Mirrored displays must be switched to extended mode before capture or restore. Hot-plug events only refresh the display list.
 - Display identity uses the manufacturer, model, and serial when usable, then a macOS display UUID where available. Some docks, ports, virtual displays, and identical monitors report changed or ambiguous identities. If a display no longer matches, recapture its preset in the intended setup.
-- The app sends only display origins through Core Graphics. Resolution, refresh rate, scaling, rotation, HDR, and color profiles are outside the preset. Quartz can normalize positions to avoid gaps and overlap. A changed display size or orientation can make a saved position impossible. Capture a new preset for the new configuration.
+- The app uses Core Graphics to set origins and may also set a compatible display mode when a preset explicitly specifies a refresh rate. Rotation is read-only in DisplayShift because macOS does not expose a public rotation setter. Adaptive refresh is left unchanged unless a compatible fixed rate is explicitly selected. Resolution, scaling, rotation, HDR, and color profiles are outside the preset. Quartz can normalize positions to avoid gaps and overlap. A changed display size or orientation can make a saved position impossible. Capture a new preset for the new configuration.
 - Quartz designates the primary display through the origin at `(0, 0)`. DisplayShift verifies the requested origins and primary after applying them, and attempts to restore the prior arrangement if Quartz returns a different result and the original display set is still available. An applied arrangement is scoped to the current login session. Presets persist across restarts.
 - Shortcut labels refer to ANSI key positions. Some non-US keyboard layouts print different characters. Conflict detection covers DisplayShift assignments and conflicts macOS reports to the registration API. Some other apps register their shortcuts nonexclusively or handle them outside that API.
 - macOS may require approval for Launch at Login under **System Settings → General → Login Items**.

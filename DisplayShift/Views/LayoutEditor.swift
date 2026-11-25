@@ -7,6 +7,8 @@ struct LayoutEditor: View {
     @State private var draft: LayoutDraft
     @State private var name = ""
     @State private var feedback: String?
+    @State private var selectedID: String
+    @State private var rates: [Double] = []
     @GestureState private var drag: Drag?
 
     private struct Drag {
@@ -18,6 +20,7 @@ struct LayoutEditor: View {
         self.model = model
         self.close = close
         _draft = State(initialValue: draft)
+        _selectedID = State(initialValue: draft.displays.first?.id ?? "")
     }
 
     var body: some View {
@@ -49,6 +52,7 @@ struct LayoutEditor: View {
 
                         tile(display, moving: moving, valid: snapped != nil, size: rect.size)
                             .position(x: rect.midX + offset.width, y: rect.midY + offset.height)
+                            .onTapGesture { selectedID = display.id }
                             .gesture(gesture(for: display.id, in: transform))
                             .zIndex(moving ? 1 : 0)
                     }
@@ -59,7 +63,10 @@ struct LayoutEditor: View {
             .frame(height: 214)
             .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
             .clipShape(RoundedRectangle(cornerRadius: 8))
-            .disabled(model.busy || draft.displays.count < 2)
+            .disabled(model.busy)
+
+            displayControls
+                .disabled(model.busy || drag != nil)
 
             if let error = model.error {
                 StatusMessage(message: error) { model.error = nil }
@@ -71,6 +78,10 @@ struct LayoutEditor: View {
                 Button("Reset") {
                     if let current = model.openLayoutDraft() {
                         draft = current
+                        if !current.displays.contains(where: { $0.id == selectedID }) {
+                            selectedID = current.displays.first?.id ?? ""
+                        }
+                        reloadRates()
                         feedback = nil
                     }
                 }
@@ -81,7 +92,7 @@ struct LayoutEditor: View {
                     model.applyDraft(draft)
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(Layout.matches(draft.displays, model.current))
+                .disabled(Layout.matchesRequest(draft.displays, model.current))
             }
             .disabled(model.busy || drag != nil)
 
@@ -95,6 +106,53 @@ struct LayoutEditor: View {
         }
         .padding(14)
         .frame(width: 402)
+        .onAppear(perform: reloadRates)
+        .onChange(of: selectedID) { _ in reloadRates() }
+        .onChange(of: model.current) { _ in reloadRates() }
+    }
+
+    private var displayControls: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Picker("Display", selection: $selectedID) {
+                ForEach(draft.displays) { display in
+                    Text(display.name).tag(display.id)
+                }
+            }
+            if let display = draft.displays.first(where: { $0.id == selectedID }) {
+                Picker("Refresh Rate", selection: Binding(
+                    get: { display.refreshRate },
+                    set: { draft.setRefreshRate($0, for: selectedID) }
+                )) {
+                    Text("Keep Current").tag(Double?.none)
+                    ForEach(rates, id: \.self) { rate in
+                        Text("\(rate.formatted(.number.precision(.fractionLength(0...3)))) Hz").tag(Optional(rate))
+                    }
+                    if let rate = display.refreshRate, !rates.contains(rate) {
+                        Text("\(rate.formatted()) Hz (Unavailable)").tag(Optional(rate))
+                    }
+                }
+                if let rotation = model.current.first(where: { $0.id == selectedID })?.rotation {
+                    HStack {
+                        Text("Rotation: \(rotation.formatted())°").foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Open Displays Settings") { openDisplaysSettings() }
+                    }
+                    .font(.callout)
+                }
+            }
+        }
+    }
+
+    private func reloadRates() {
+        rates = model.refreshRates(for: selectedID)
+    }
+
+    private func openDisplaysSettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.Displays-Settings.extension"),
+              NSWorkspace.shared.open(url) else {
+            model.error = "Open System Settings → Displays to change rotation."
+            return
+        }
     }
 
     private func gesture(for id: String, in workspace: Workspace) -> some Gesture {
@@ -103,7 +161,8 @@ struct LayoutEditor: View {
                 state = Drag(id: id, translation: value.translation)
             }
             .onEnded { value in
-                guard !model.busy else { return }
+                guard !model.busy, draft.displays.count > 1 else { return }
+                selectedID = id
                 if let snapped = proposal(for: Drag(id: id, translation: value.translation), in: workspace) {
                     draft = snapped
                     feedback = nil
@@ -128,7 +187,8 @@ struct LayoutEditor: View {
             RoundedRectangle(cornerRadius: 5)
                 .fill(color.opacity(moving ? 0.32 : display.builtIn ? 0.24 : 0.12))
             RoundedRectangle(cornerRadius: 5)
-                .strokeBorder(color.opacity(moving ? 1 : 0.75), lineWidth: moving ? 2 : 1)
+                .strokeBorder(color.opacity(moving || display.id == selectedID ? 1 : 0.6),
+                              lineWidth: moving || display.id == selectedID ? 2 : 1)
             if display.primary && size.height >= 12 {
                 Capsule().fill(color).frame(width: min(size.width * 0.4, 32), height: 2).padding(.top, 4)
             }

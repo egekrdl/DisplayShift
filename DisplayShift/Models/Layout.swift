@@ -7,6 +7,8 @@ struct Display: Codable, Equatable, Identifiable {
     var bounds: CGRect
     var primary: Bool
     var builtIn: Bool
+    var refreshRate: Double? = nil
+    var rotation: Double? = nil
 }
 
 struct Preset: Codable, Identifiable {
@@ -17,7 +19,7 @@ struct Preset: Codable, Identifiable {
 
 enum LayoutError: LocalizedError {
     case unavailable, mirrored, ambiguous, missing([String]), extra([String])
-    case displaySizeChanged, disconnectedDraft
+    case displaySizeChanged, disconnectedDraft, unsupportedRefreshRate(String)
     case invalid, system(String, Int32), verification(Bool), emptyName, toggle
 
     var errorDescription: String? {
@@ -27,6 +29,7 @@ enum LayoutError: LocalizedError {
         case .ambiguous: return "macOS reported duplicate display identifiers. The displays cannot be matched safely."
         case .missing(let names): return "Connect the required displays: \(names.joined(separator: ", "))."
         case .extra(let names): return "This preset does not include these active displays: \(names.joined(separator: ", "))."
+        case .unsupportedRefreshRate(let name): return "The selected refresh rate is unavailable for \(name) at its current resolution and scaling."
         case .displaySizeChanged: return "A display changed size. Reset the editor to load the current displays."
         case .disconnectedDraft: return "Each display must touch another display along an edge, without overlap."
         case .invalid: return "This arrangement contains invalid display coordinates or a missing primary display."
@@ -71,6 +74,17 @@ enum Layout {
                   let y = Int32(exactly: display.bounds.minY - anchor.bounds.minY),
                   display.primary || x != 0 || y != 0 else { throw LayoutError.invalid }
             return Placement(id: display.id, x: x, y: y)
+        }
+    }
+
+    static func matchesRequest(_ requested: [Display], _ current: [Display]) -> Bool {
+        guard matches(requested, current) else { return false }
+        let rates = Dictionary(uniqueKeysWithValues: current.compactMap { display in
+            display.refreshRate.map { (display.id, $0) }
+        })
+        return requested.allSatisfy { display in
+            guard let rate = display.refreshRate else { return true }
+            return rates[display.id] == rate
         }
     }
 

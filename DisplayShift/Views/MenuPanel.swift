@@ -3,6 +3,7 @@ import SwiftUI
 struct MenuPanel: View {
     @ObservedObject var model: DisplayModel
     var openSettings: () -> Void
+    var openUpdates: () -> Void
     @State private var name = ""
     @State private var naming = false
     @State private var draft: LayoutDraft?
@@ -40,7 +41,7 @@ struct MenuPanel: View {
                         }
                     }
                 }
-                .frame(height: min(Double(model.presets.count), 5) * 56)
+                .frame(height: min(Double(model.presets.count), 5) * (model.hidePresetPreviews ? 37 : 56))
             }
             if let error = model.error {
                 StatusMessage(message: error) { model.error = nil }
@@ -71,6 +72,11 @@ struct MenuPanel: View {
             action("Toggle Layout", icon: "arrow.left.arrow.right") { model.toggle() }
                 .disabled(model.busy || !model.canToggle)
                 .help(model.canToggle ? "Switch between the selected layouts" : "Choose two presets in Shortcuts settings")
+            action("Check for Updates…", icon: "arrow.down.circle") {
+                PrivateUpdates.shared.check()
+                openUpdates()
+
+            }
             action("Settings…", icon: "gearshape", run: openSettings)
             action("Quit DisplayShift", icon: "power") { NSApp.terminate(nil) }
         }
@@ -89,30 +95,31 @@ struct MenuPanel: View {
         let active = model.isActive(preset)
         return Button { model.apply(preset) } label: {
             HStack(spacing: 9) {
-                LayoutPreview(displays: preset.displays, active: active)
+                if !model.hidePresetPreviews { LayoutPreview(displays: preset.displays, active: active) }
                 VStack(alignment: .leading, spacing: 3) {
                     Text(preset.name).fontWeight(.medium).lineLimit(1)
-                    if active { Text("Active").font(.caption).foregroundStyle(.secondary) }
+                    if active && !model.hidePresetPreviews { Text("Active").font(.caption).foregroundStyle(.secondary) }
                 }
                 Spacer(minLength: 5)
-                if let shortcut = model.shortcuts.presets[preset.id] {
+                if !model.hidePresetPreviews, let shortcut = model.shortcuts.presets[preset.id] {
                     Text(shortcut.label)
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
                         .help(model.unavailableShortcuts.contains(.preset(preset.id)) ? "Shortcut unavailable" : shortcut.label)
                 }
-                if active {
+                if active && !model.hidePresetPreviews {
                     Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.accentColor)
                 }
             }
             .padding(.horizontal, 4)
-            .frame(height: 51)
+            .frame(height: model.hidePresetPreviews ? 32 : 51)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(active ? Color.accentColor.opacity(0.10) : .clear,
                         in: RoundedRectangle(cornerRadius: 6))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(active ? .isSelected : [])
         .help("Apply \(preset.name)")
         .disabled(model.busy)
     }

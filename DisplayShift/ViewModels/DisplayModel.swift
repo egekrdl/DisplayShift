@@ -13,6 +13,9 @@ final class DisplayModel: ObservableObject {
     @Published private(set) var shortcuts = ShortcutSettings()
     @Published private(set) var unavailableShortcuts: Set<ShortcutAction> = []
     @Published private(set) var loginStatus = SMAppService.Status.notRegistered
+    @Published var hidePresetPreviews: Bool {
+        didSet { store.defaults.set(hidePresetPreviews, forKey: "hidePresetPreviews") }
+    }
     @Published var showActiveName: Bool {
         didSet { store.defaults.set(showActiveName, forKey: "showActiveName") }
     }
@@ -27,6 +30,7 @@ final class DisplayModel: ObservableObject {
     init(manager: any DisplayManaging, store: PresetStore = PresetStore()) {
         self.manager = manager
         self.store = store
+        hidePresetPreviews = store.defaults.bool(forKey: "hidePresetPreviews")
         showActiveName = store.defaults.bool(forKey: "showActiveName")
         do { presets = try store.load() } catch {
             storageAvailable = false
@@ -63,7 +67,7 @@ final class DisplayModel: ObservableObject {
     }
 
     func isActive(_ preset: Preset) -> Bool {
-        Layout.matches(preset.displays, current)
+        Layout.matchesRequest(preset.displays, current)
     }
 
     var activePreset: Preset? { presets.first(where: isActive) }
@@ -154,10 +158,19 @@ final class DisplayModel: ObservableObject {
     func capture(_ name: String) -> Bool {
         perform {
             let name = try validName(name)
-            let displays = try manager.current()
-            _ = try Layout.placements(for: displays, on: displays)
+            let displays = try capturePositions()
             try persist(presets + [Preset(name: name, displays: displays)])
         }
+    }
+
+    func refreshRates(for id: String) -> [Double] {
+        (try? manager.refreshRates(for: id)) ?? []
+    }
+
+    private func capturePositions() throws -> [Display] {
+        let displays = try manager.current()
+        _ = try Layout.placements(for: displays, on: displays)
+        return LayoutDraft(displays: displays).displays
     }
 
     func openLayoutDraft() -> LayoutDraft? {
@@ -201,9 +214,7 @@ final class DisplayModel: ObservableObject {
 
     func update(_ id: UUID) {
         edit(id) {
-            let displays = try manager.current()
-            _ = try Layout.placements(for: displays, on: displays)
-            $0.displays = displays
+            $0.displays = try capturePositions()
         }
     }
 

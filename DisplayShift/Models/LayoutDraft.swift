@@ -3,6 +3,19 @@ import CoreGraphics
 struct LayoutDraft {
     private(set) var displays: [Display]
 
+    init(displays: [Display]) {
+        self.displays = displays.map { display in
+            var display = display
+            display.refreshRate = nil
+            return display
+        }
+    }
+
+    mutating func setRefreshRate(_ rate: Double?, for id: String) {
+        guard let index = displays.firstIndex(where: { $0.id == id }) else { return }
+        displays[index].refreshRate = rate
+    }
+
     mutating func move(_ id: String, to origin: CGPoint, snapDistance: CGFloat, alignmentDistance: CGFloat) -> Bool {
         guard let index = displays.firstIndex(where: { $0.id == id }) else { return false }
         let size = displays[index].bounds.size

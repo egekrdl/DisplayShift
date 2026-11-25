@@ -5,6 +5,7 @@ import CoreGraphics
 protocol DisplayManaging {
     func current() throws -> [Display]
     func connected() throws -> [Display]
+    func refreshRates(for id: String) throws -> [Double]
     func apply(_ displays: [Display]) async throws
 }
 
@@ -23,26 +24,66 @@ final class QuartzDisplays: DisplayManaging {
         try readDisplays(online: true).map(\.display)
     }
 
+    func refreshRates(for id: String) throws -> [Double] {
+        guard let screen = try snapshot().first(where: { $0.display.id == id }),
+              let current = CGDisplayCopyDisplayMode(screen.handle) else { return [] }
+        return Array(Set(compatibleModes(for: screen, matching: current).map(\.refreshRate))).sorted()
+    }
+
     func apply(_ displays: [Display]) async throws {
         let before = try snapshot()
         let original = before.map(\.display)
         let plan = try Layout.placements(for: displays, on: original)
-        if Layout.matches(displays, original) { return }
-        try commit(plan, to: before)
+        if Layout.matchesRequest(displays, original) { return }
+        let screens = Dictionary(uniqueKeysWithValues: before.map { ($0.display.id, $0) })
+        var requestedModes: [String: CGDisplayMode] = [:]
+        var originalModes: [String: CGDisplayMode] = [:]
+        for display in displays {
+            guard let rate = display.refreshRate, let screen = screens[display.id],
+                  rate != screen.display.refreshRate else { continue }
+            guard let current = CGDisplayCopyDisplayMode(screen.handle),
+                  let mode = compatibleModes(for: screen, matching: current).first(where: { $0.refreshRate == rate }) else {
+                throw LayoutError.unsupportedRefreshRate(display.name)
+            }
+            requestedModes[display.id] = mode
+            originalModes[display.id] = current
+        }
+
+        try commit(plan, modes: requestedModes, to: before)
         try? await Task.sleep(nanoseconds: 350_000_000)
         guard let after = try? snapshot() else { throw LayoutError.verification(false) }
-        if Layout.matches(displays, after.map(\.display)) { return }
-        var restored = Layout.matches(original, after.map(\.display))
-        if !restored, let rollback = try? Layout.placements(for: original, on: after.map(\.display)) {
+        if Layout.matchesRequest(displays, after.map(\.display)) { return }
+
+        let rollbackTarget = original.map { display in
+            var display = display
+            if originalModes[display.id] == nil { display.refreshRate = nil }
+            return display
+        }
+        var restored = Layout.matchesRequest(rollbackTarget, after.map(\.display))
+        if !restored, let rollback = try? Layout.placements(for: rollbackTarget, on: after.map(\.display)),
+           after.allSatisfy({ screen in
+               originalModes[screen.display.id] == nil || screens[screen.display.id]?.handle == screen.handle
+           }) {
             do {
-                try commit(rollback, to: after)
+                try commit(rollback, modes: originalModes, to: after)
                 try? await Task.sleep(nanoseconds: 350_000_000)
-                restored = (try? current()).map { Layout.matches(original, $0) } ?? false
+                restored = (try? current()).map { Layout.matchesRequest(rollbackTarget, $0) } ?? false
             } catch {
                 restored = false
             }
         }
         throw LayoutError.verification(restored)
+    }
+
+    private func compatibleModes(for screen: Screen, matching current: CGDisplayMode) -> [CGDisplayMode] {
+        let modes = CGDisplayCopyAllDisplayModes(screen.handle, nil) as? [CGDisplayMode] ?? []
+        return modes.filter { mode in
+            mode.isUsableForDesktopGUI() && mode.refreshRate.isFinite && mode.refreshRate > 0 &&
+                mode.width == current.width && mode.height == current.height &&
+                mode.pixelWidth == current.pixelWidth && mode.pixelHeight == current.pixelHeight
+        }.sorted { lhs, rhs in
+            lhs.ioFlags == current.ioFlags && rhs.ioFlags != current.ioFlags
+        }
     }
 
     private func snapshot() throws -> [Screen] {
@@ -80,7 +121,9 @@ final class QuartzDisplays: DisplayManaging {
             }
             let name = screen?.localizedName ?? (builtIn ? "Built-in Display" : "External Display")
             let display = Display(id: id, name: name, bounds: CGDisplayBounds(handle),
-                                  primary: CGDisplayIsMain(handle) != 0, builtIn: builtIn)
+                                  primary: CGDisplayIsMain(handle) != 0, builtIn: builtIn,
+                                  refreshRate: CGDisplayCopyDisplayMode(handle)?.refreshRate,
+                                  rotation: CGDisplayRotation(handle))
             return Screen(handle: handle, display: display)
         }
         let countByID = Dictionary(grouping: result, by: { $0.display.id })
@@ -95,11 +138,15 @@ final class QuartzDisplays: DisplayManaging {
         }
     }
 
-    private func commit(_ plan: [Layout.Placement], to screens: [Screen]) throws {
+    private func commit(_ plan: [Layout.Placement], modes: [String: CGDisplayMode], to screens: [Screen]) throws {
         let handles = Dictionary(uniqueKeysWithValues: screens.map { ($0.display.id, $0.handle) })
         var config: CGDisplayConfigRef?
         try check(CGBeginDisplayConfiguration(&config), "Starting display configuration")
         do {
+            for (id, mode) in modes {
+                guard let handle = handles[id] else { throw LayoutError.invalid }
+                try check(CGConfigureDisplayWithDisplayMode(config, handle, mode, nil), "Setting refresh rate")
+            }
             for placement in plan {
                 guard let handle = handles[placement.id] else { throw LayoutError.invalid }
                 try check(CGConfigureDisplayOrigin(config, handle, placement.x, placement.y), "Arranging displays")

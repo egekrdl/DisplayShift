@@ -8,7 +8,8 @@ struct DisplayShiftApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MenuPanel(model: model) { settings.show(model) }
+            MenuPanel(model: model, openSettings: { settings.show(model) },
+                      openUpdates: { settings.show(model, tab: .updates) })
         } label: {
             let icon = model.error == nil ? "display.2" : "exclamationmark.circle"
             if model.showActiveName, let active = model.activePreset {
@@ -22,17 +23,20 @@ struct DisplayShiftApp: App {
 }
 
 @MainActor
-final class SettingsWindow {
+final class SettingsWindow: ObservableObject {
+    enum Tab { case general, presets, shortcuts, updates, about }
+    @Published var tab = Tab.general
     static let shared = SettingsWindow()
     private var window: NSWindow?
 
-    func show(_ model: DisplayModel) {
+    func show(_ model: DisplayModel, tab: Tab? = nil) {
+        if let tab { self.tab = tab }
         if window == nil {
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 440),
                                   styleMask: [.titled, .closable], backing: .buffered, defer: false)
             window.title = "DisplayShift Settings"
             window.isReleasedWhenClosed = false
-            window.contentView = NSHostingView(rootView: SettingsPanel(model: model))
+            window.contentView = NSHostingView(rootView: SettingsPanel(model: model, navigation: self))
             window.center()
             self.window = window
         }
